@@ -128,6 +128,85 @@ func TestCopyFile(t *testing.T) {
 	}
 }
 
+func TestCopyFileStatError(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "src.txt")
+	dst := filepath.Join(dir, "dst.txt")
+
+	if err := CreateFile(src, "content"); err != nil {
+		t.Fatalf("CreateFile() error = %v", err)
+	}
+
+	origStat := osFileStat
+	defer func() { osFileStat = origStat }()
+	osFileStat = func(f *os.File) (os.FileInfo, error) {
+		return nil, errors.New("stat failed")
+	}
+
+	err := CopyFile(src, dst)
+	if err == nil {
+		t.Fatal("expected stat error")
+	}
+
+	var fileErr *fileerrors.FileError
+	if !errors.As(err, &fileErr) {
+		t.Errorf("expected FileError, got %T: %v", err, err)
+	}
+}
+
+func TestCopyFileOpenGenericError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	dir := t.TempDir()
+	subdir := filepath.Join(dir, "noperm")
+	if err := os.Mkdir(subdir, 0755); err != nil {
+		t.Fatalf("Mkdir() error = %v", err)
+	}
+	src := filepath.Join(subdir, "src.txt")
+	if err := os.WriteFile(src, []byte("content"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if err := os.Chmod(subdir, 0000); err != nil {
+		t.Fatalf("Chmod() error = %v", err)
+	}
+
+	dst := filepath.Join(dir, "dst.txt")
+	err := CopyFile(src, dst)
+
+	os.Chmod(subdir, 0755)
+
+	if err == nil {
+		t.Fatal("expected error for unreadable source")
+	}
+
+	var fileErr *fileerrors.FileError
+	if !errors.As(err, &fileErr) {
+		t.Errorf("expected FileError, got %T: %v", err, err)
+	}
+}
+
+func TestCopyFileDirectorySource(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "srcdir")
+	dst := filepath.Join(dir, "dst.txt")
+
+	if err := os.Mkdir(src, 0755); err != nil {
+		t.Fatalf("Mkdir() error = %v", err)
+	}
+
+	err := CopyFile(src, dst)
+	if err == nil {
+		t.Fatal("expected error when source is a directory")
+	}
+
+	var fileErr *fileerrors.FileError
+	if !errors.As(err, &fileErr) {
+		t.Errorf("expected FileError, got %T: %v", err, err)
+	}
+}
+
 func TestCopyFileNotFound(t *testing.T) {
 	dir := t.TempDir()
 	src := filepath.Join(dir, "nonexistent.txt")
@@ -206,6 +285,31 @@ func TestCombineFiles(t *testing.T) {
 	}
 }
 
+func TestCombineFilesGenericError(t *testing.T) {
+	dir := t.TempDir()
+	src1 := filepath.Join(dir, "a.txt")
+	src2 := filepath.Join(dir, "b.txt")
+	dst := filepath.Join(dir, "combined.txt")
+
+	if err := CreateFile(src1, "hello"); err != nil {
+		t.Fatalf("CreateFile() error = %v", err)
+	}
+
+	if err := os.Mkdir(src2, 0755); err != nil {
+		t.Fatalf("Mkdir() error = %v", err)
+	}
+
+	err := CombineFiles(src1, src2, dst)
+	if err == nil {
+		t.Fatal("expected error when source is a directory")
+	}
+
+	var fileErr *fileerrors.FileError
+	if !errors.As(err, &fileErr) {
+		t.Errorf("expected FileError, got %T: %v", err, err)
+	}
+}
+
 func TestCombineFilesNotFound(t *testing.T) {
 	dir := t.TempDir()
 	src1 := filepath.Join(dir, "a.txt")
@@ -275,5 +379,309 @@ func TestForceDeleteFile(t *testing.T) {
 
 	if err := ForceDeleteFile(path); err != nil {
 		t.Fatalf("ForceDeleteFile() error = %v", err)
+	}
+}
+
+func TestCreateFilePermissionError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	dir := t.TempDir()
+	subdir := filepath.Join(dir, "readonly")
+	if err := os.Mkdir(subdir, 0755); err != nil {
+		t.Fatalf("Mkdir() error = %v", err)
+	}
+	if err := os.Chmod(subdir, 0000); err != nil {
+		t.Fatalf("Chmod() error = %v", err)
+	}
+
+	path := filepath.Join(subdir, "test.txt")
+	err := CreateFile(path, "content")
+
+	os.Chmod(subdir, 0755)
+
+	if err == nil {
+		t.Fatal("expected permission error")
+	}
+
+	var permErr *fileerrors.PermissionError
+	if !errors.As(err, &permErr) {
+		t.Errorf("expected PermissionError, got %T: %v", err, err)
+	}
+}
+
+func TestCreateFileGenericError(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "nonexistent", "test.txt")
+
+	err := CreateFile(path, "content")
+	if err == nil {
+		t.Fatal("expected error for nonexistent parent directory")
+	}
+
+	var fileErr *fileerrors.FileError
+	if !errors.As(err, &fileErr) {
+		t.Errorf("expected FileError, got %T: %v", err, err)
+	}
+}
+
+func TestCopyFilePermissionError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	dir := t.TempDir()
+	src := filepath.Join(dir, "src.txt")
+	dstDir := filepath.Join(dir, "readonly")
+	if err := os.Mkdir(dstDir, 0755); err != nil {
+		t.Fatalf("Mkdir() error = %v", err)
+	}
+	if err := os.Chmod(dstDir, 0000); err != nil {
+		t.Fatalf("Chmod() error = %v", err)
+	}
+
+	if err := CreateFile(src, "content"); err != nil {
+		t.Fatalf("CreateFile() error = %v", err)
+	}
+
+	dst := filepath.Join(dstDir, "dst.txt")
+	err := CopyFile(src, dst)
+
+	os.Chmod(dstDir, 0755)
+
+	if err == nil {
+		t.Fatal("expected permission error")
+	}
+
+	var permErr *fileerrors.PermissionError
+	if !errors.As(err, &permErr) {
+		t.Errorf("expected PermissionError, got %T: %v", err, err)
+	}
+}
+
+func TestCopyFileGenericDstError(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "src.txt")
+	if err := CreateFile(src, "content"); err != nil {
+		t.Fatalf("CreateFile() error = %v", err)
+	}
+
+	dst := filepath.Join(dir, "nonexistent", "dst.txt")
+	err := CopyFile(src, dst)
+	if err == nil {
+		t.Fatal("expected error for nonexistent destination parent")
+	}
+
+	var fileErr *fileerrors.FileError
+	if !errors.As(err, &fileErr) {
+		t.Errorf("expected FileError, got %T: %v", err, err)
+	}
+}
+
+func TestCombineFilesPermissionError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	dir := t.TempDir()
+	src1 := filepath.Join(dir, "a.txt")
+	src2 := filepath.Join(dir, "b.txt")
+	dstDir := filepath.Join(dir, "readonly")
+	if err := os.Mkdir(dstDir, 0755); err != nil {
+		t.Fatalf("Mkdir() error = %v", err)
+	}
+	if err := os.Chmod(dstDir, 0000); err != nil {
+		t.Fatalf("Chmod() error = %v", err)
+	}
+
+	if err := CreateFile(src1, "hello"); err != nil {
+		t.Fatalf("CreateFile() error = %v", err)
+	}
+	if err := CreateFile(src2, "world"); err != nil {
+		t.Fatalf("CreateFile() error = %v", err)
+	}
+
+	dst := filepath.Join(dstDir, "combined.txt")
+	err := CombineFiles(src1, src2, dst)
+
+	os.Chmod(dstDir, 0755)
+
+	if err == nil {
+		t.Fatal("expected permission error")
+	}
+
+	var permErr *fileerrors.PermissionError
+	if !errors.As(err, &permErr) {
+		t.Errorf("expected PermissionError, got %T: %v", err, err)
+	}
+}
+
+func TestCombineFilesGenericDstError(t *testing.T) {
+	dir := t.TempDir()
+	src1 := filepath.Join(dir, "a.txt")
+	src2 := filepath.Join(dir, "b.txt")
+
+	if err := CreateFile(src1, "hello"); err != nil {
+		t.Fatalf("CreateFile() error = %v", err)
+	}
+	if err := CreateFile(src2, "world"); err != nil {
+		t.Fatalf("CreateFile() error = %v", err)
+	}
+
+	dst := filepath.Join(dir, "nonexistent", "combined.txt")
+	err := CombineFiles(src1, src2, dst)
+	if err == nil {
+		t.Fatal("expected error for nonexistent destination parent")
+	}
+
+	var fileErr *fileerrors.FileError
+	if !errors.As(err, &fileErr) {
+		t.Errorf("expected FileError, got %T: %v", err, err)
+	}
+}
+
+func TestCombineFilesGenericSrcError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	dir := t.TempDir()
+	src1 := filepath.Join(dir, "a.txt")
+	dst := filepath.Join(dir, "combined.txt")
+
+	if err := CreateFile(src1, "hello"); err != nil {
+		t.Fatalf("CreateFile() error = %v", err)
+	}
+
+	src2Dir := filepath.Join(dir, "noperm")
+	if err := os.Mkdir(src2Dir, 0755); err != nil {
+		t.Fatalf("Mkdir() error = %v", err)
+	}
+	src2Blocked := filepath.Join(src2Dir, "b.txt")
+	if err := os.WriteFile(src2Blocked, []byte("world"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if err := os.Chmod(src2Dir, 0000); err != nil {
+		t.Fatalf("Chmod() error = %v", err)
+	}
+
+	err := CombineFiles(src1, src2Blocked, dst)
+
+	os.Chmod(src2Dir, 0755)
+
+	if err == nil {
+		t.Fatal("expected error for unreadable source")
+	}
+
+	var fileErr *fileerrors.FileError
+	if !errors.As(err, &fileErr) {
+		t.Errorf("expected FileError, got %T: %v", err, err)
+	}
+}
+
+func TestDeleteFilePermissionError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	dir := t.TempDir()
+	subdir := filepath.Join(dir, "readonly")
+	if err := os.Mkdir(subdir, 0755); err != nil {
+		t.Fatalf("Mkdir() error = %v", err)
+	}
+	path := filepath.Join(subdir, "file.txt")
+	if err := os.WriteFile(path, []byte("content"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if err := os.Chmod(subdir, 0000); err != nil {
+		t.Fatalf("Chmod() error = %v", err)
+	}
+
+	err := DeleteFile(path)
+
+	os.Chmod(subdir, 0755)
+
+	if err == nil {
+		t.Fatal("expected permission error")
+	}
+
+	var permErr *fileerrors.PermissionError
+	if !errors.As(err, &permErr) {
+		t.Errorf("expected PermissionError, got %T: %v", err, err)
+	}
+}
+
+func TestDeleteFileGenericError(t *testing.T) {
+	dir := t.TempDir()
+	subdir := filepath.Join(dir, "notempty")
+	if err := os.Mkdir(subdir, 0755); err != nil {
+		t.Fatalf("Mkdir() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(subdir, "child"), []byte("x"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	err := DeleteFile(subdir)
+	if err == nil {
+		t.Fatal("expected error for non-empty directory")
+	}
+
+	var fileErr *fileerrors.FileError
+	if !errors.As(err, &fileErr) {
+		t.Errorf("expected FileError, got %T: %v", err, err)
+	}
+}
+
+func TestForceDeleteFilePermissionError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	dir := t.TempDir()
+	subdir := filepath.Join(dir, "readonly")
+	if err := os.Mkdir(subdir, 0755); err != nil {
+		t.Fatalf("Mkdir() error = %v", err)
+	}
+	path := filepath.Join(subdir, "file.txt")
+	if err := os.WriteFile(path, []byte("content"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if err := os.Chmod(subdir, 0000); err != nil {
+		t.Fatalf("Chmod() error = %v", err)
+	}
+
+	err := ForceDeleteFile(path)
+
+	os.Chmod(subdir, 0755)
+
+	if err == nil {
+		t.Fatal("expected permission error")
+	}
+
+	var permErr *fileerrors.PermissionError
+	if !errors.As(err, &permErr) {
+		t.Errorf("expected PermissionError, got %T: %v", err, err)
+	}
+}
+
+func TestForceDeleteFileGenericError(t *testing.T) {
+	dir := t.TempDir()
+	subdir := filepath.Join(dir, "notempty")
+	if err := os.Mkdir(subdir, 0755); err != nil {
+		t.Fatalf("Mkdir() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(subdir, "child"), []byte("x"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	err := ForceDeleteFile(subdir)
+	if err == nil {
+		t.Fatal("expected error for non-empty directory")
+	}
+
+	var fileErr *fileerrors.FileError
+	if !errors.As(err, &fileErr) {
+		t.Errorf("expected FileError, got %T: %v", err, err)
 	}
 }

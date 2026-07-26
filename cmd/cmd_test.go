@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -181,6 +182,91 @@ func TestCommandMissingArgs(t *testing.T) {
 	_, err = executeCommand("delete")
 	if err == nil {
 		t.Error("expected error for missing args")
+	}
+}
+
+func TestSetVersionInfo(t *testing.T) {
+	SetVersionInfo("1.0.0", "abc123", "2024-01-01")
+	if version != "1.0.0" {
+		t.Errorf("version = %q, want %q", version, "1.0.0")
+	}
+	if commit != "abc123" {
+		t.Errorf("commit = %q, want %q", commit, "abc123")
+	}
+	if date != "2024-01-01" {
+		t.Errorf("date = %q, want %q", date, "2024-01-01")
+	}
+}
+
+func TestExecuteHappyPath(t *testing.T) {
+	buf := new(bytes.Buffer)
+	rootCmd.SetOutput(buf)
+	rootCmd.SetArgs([]string{})
+	Execute()
+}
+
+func TestExecuteErrorPath(t *testing.T) {
+	if os.Getenv("TEST_CMD_EXECUTE") == "1" {
+		rootCmd.SetArgs([]string{"nonexistent-cmd"})
+		Execute()
+		return
+	}
+
+	cmd := exec.Command(os.Args[0], "-test.run=TestExecuteErrorPath", "-test.v=false")
+	cmd.Env = append(os.Environ(), "TEST_CMD_EXECUTE=1")
+	err := cmd.Run()
+
+	if err == nil {
+		t.Fatal("expected error from Execute()")
+	}
+
+	exitErr, ok := err.(*exec.ExitError)
+	if !ok {
+		t.Fatalf("expected ExitError, got %T: %v", err, err)
+	}
+	if exitErr.ExitCode() != 1 {
+		t.Fatalf("expected exit code 1, got %d", exitErr.ExitCode())
+	}
+}
+
+func TestCreateCommandAlreadyExists(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "test.txt")
+
+	if err := os.WriteFile(path, []byte("existing"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	_, err := executeCommand("create", path)
+	if err == nil {
+		t.Fatal("expected error for existing file")
+	}
+}
+
+func TestCopyCommandNotFound(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "nonexistent.txt")
+	dst := filepath.Join(dir, "dst.txt")
+
+	_, err := executeCommand("copy", src, dst)
+	if err == nil {
+		t.Fatal("expected error for missing source")
+	}
+}
+
+func TestCombineCommandNotFound(t *testing.T) {
+	dir := t.TempDir()
+	src1 := filepath.Join(dir, "a.txt")
+	src2 := filepath.Join(dir, "nonexistent.txt")
+	dst := filepath.Join(dir, "combined.txt")
+
+	if err := os.WriteFile(src1, []byte("hello"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	_, err := executeCommand("combine", src1, src2, dst)
+	if err == nil {
+		t.Fatal("expected error for missing source")
 	}
 }
 

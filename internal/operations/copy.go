@@ -9,6 +9,8 @@ import (
 	fileerrors "github.com/rashidbpg/filectldemo/pkg/errors"
 )
 
+var osFileStat = (*os.File).Stat
+
 // CopyFile copies a file from src to dst, preserving permissions.
 // Returns an error if the source doesn't exist or destination cannot be created.
 func CopyFile(src, dst string) error {
@@ -21,7 +23,7 @@ func CopyFile(src, dst string) error {
 	}
 	defer srcFile.Close()
 
-	srcInfo, err := srcFile.Stat()
+	srcInfo, err := osFileStat(srcFile)
 	if err != nil {
 		return &fileerrors.FileError{Op: "copy", Path: src, Err: err}
 	}
