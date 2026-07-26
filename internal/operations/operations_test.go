@@ -655,7 +655,7 @@ func TestForceDeleteFilePermissionError(t *testing.T) {
 
 	err := ForceDeleteFile(path)
 
-	os.Chmod(subdir, 0755)
+	_ = os.Chmod(subdir, 0755)
 
 	if err == nil {
 		t.Fatal("expected permission error")
