@@ -1,0 +1,147 @@
+services:
+  build:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
+        COMMIT: ${COMMIT:-$(git rev-parse --short HEAD 2>/dev/null || echo none)}
+        DATE: ${DATE:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}
+    image: filectl:local
+    entrypoint: ["echo", "Build complete. Use 'test' or 'demo' service."]
+
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: filectl:local
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        set -e
+        echo "=== Running CLI integration tests on $(cat /etc/os-release | grep PRETTY_NAME | cut -d= -f2 | tr -d '"') ==="
+        echo ""
+        mkdir -p /tmp/filectl-test
+        cd /tmp/filectl-test
+
+        echo "1. Testing create (empty)..."
+        filectl create empty.txt
+        [ -f empty.txt ] && echo "   PASS" || (echo "   FAIL"; exit 1)
+
+        echo "2. Testing create (with content)..."
+        filectl create hello.txt --content "Hello from Docker!"
+        [ "$(cat hello.txt)" = "Hello from Docker!" ] && echo "   PASS" || (echo "   FAIL"; exit 1)
+
+        echo "3. Testing copy..."
+        filectl copy hello.txt hello_copy.txt
+        diff hello.txt hello_copy.txt && echo "   PASS" || (echo "   FAIL"; exit 1)
+
+        echo "4. Testing combine..."
+        filectl create second.txt --content " World"
+        filectl combine hello.txt second.txt combined.txt
+        [ "$(cat combined.txt)" = "Hello from Docker! World" ] && echo "   PASS" || (echo "   FAIL"; exit 1)
+
+        echo "5. Testing delete..."
+        filectl delete empty.txt
+        [ ! -f empty.txt ] && echo "   PASS" || (echo "   FAIL"; exit 1)
+
+        echo ""
+        echo "=== All CLI integration tests passed ==="
+    profiles: ["test"]
+
+  test-go:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    working_dir: /app
+    command: ["go", "test", "-v", "-race", "./..."]
+    volumes:
+      - .:/app
+    profiles: ["test"]
+
+  demo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: filectl:local
+    stdin_open: true
+    tty: true
+    working_dir: /workspace
+    volumes:
+      - ./testdata:/workspace:rw
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        echo "╔══════════════════════════════════════════╗"
+        echo "║        filectl Interactive Demo          ║"
+        echo "╚══════════════════════════════════════════╝"
+        echo ""
+        echo "Available commands:"
+        echo "  filectl create <file> [--content \"text\"]"
+        echo "  filectl copy <src> <dst>"
+        echo "  filectl combine <src1> <src2> <dst>"
+        echo "  filectl delete <file>"
+        echo "  filectl --help"
+        echo ""
+        echo "--- Demo: Creating and combining files ---"
+        echo ""
+        filectl create greeting.txt --content "Hello from filectl!"
+        filectl create name.txt --content "Running on $(cat /etc/os-release | grep PRETTY_NAME | cut -d= -f2 | tr -d '"')"
+        filectl combine greeting.txt name.txt message.txt
+        echo ""
+        echo "--- Result ---"
+        cat message.txt
+        echo ""
+        echo "--- File listing ---"
+        ls -la /workspace/*.txt
+        echo ""
+        echo "Try it yourself! Type 'filectl --help' to start."
+        exec sh
+    profiles: ["demo"]
+
+  debian-install:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    image: filectl:local-builder
+    working_dir: /app
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        set -e
+        echo "=== Building Debian package ==="
+        VERSION=$$(git describe --tags --always --dirty 2>/dev/null || echo "1.0.0")
+        PKG_DIR=$$(mktemp -d)
+
+        mkdir -p $$PKG_DIR/DEBIAN $$PKG_DIR/usr/local/bin
+        cp filectl $$PKG_DIR/usr/local/bin/filectl
+        chmod 755 $$PKG_DIR/usr/local/bin/filectl
+
+        cat > $$PKG_DIR/DEBIAN/control << EOF
+        Package: filectl
+        Version: $${VERSION#v}
+        Section: utils
+        Priority: optional
+        Architecture: amd64
+        Maintainer: Developer <dev@example.com>
+        Description: A file manipulation CLI tool
+         filectl provides commands for creating, copying,
+         combining, and deleting files.
+        EOF
+
+        dpkg-deb --build $$PKG_DIR /app/dist/filectl_$${VERSION#v}_amd64.deb
+        echo ""
+        echo "=== Package built ==="
+        ls -la /app/dist/*.deb
+        echo ""
+        echo "=== Installing package ==="
+        dpkg -i /app/dist/filectl_$${VERSION#v}_amd64.deb
+        echo ""
+        echo "=== Verifying installation ==="
+        which filectl
+        filectl --help
+    volumes:
+      - .:/app
+    profiles: ["install"]

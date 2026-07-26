@@ -1,0 +1,15 @@
+.git
+.github
+.gitignore
+.golangci.yml
+.golangci.yaml
+.dockerignore
+Dockerfile
+docker-compose.yml
+dist/
+*.md
+LICENSE
+Makefile
+coverage.out
+coverage.html
+.env

@@ -1,0 +1,172 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v4
+        with:
+          version: latest
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - name: Run unit tests
+        run: go test -v -race -coverprofile=coverage.out ./...
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.out
+
+  integration-test:
+    needs: [test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - name: Build binary
+        run: go build -o filectl .
+      - name: Run integration tests
+        run: |
+          ./filectl create /tmp/test-create.txt --content "integration test"
+          cat /tmp/test-create.txt
+          ./filectl copy /tmp/test-create.txt /tmp/test-copy.txt
+          cat /tmp/test-copy.txt
+          ./filectl create /tmp/test-a.txt --content "hello "
+          ./filectl create /tmp/test-b.txt --content "world"
+          ./filectl combine /tmp/test-a.txt /tmp/test-b.txt /tmp/test-combined.txt
+          cat /tmp/test-combined.txt
+          ./filectl delete /tmp/test-create.txt
+          ./filectl delete /tmp/test-copy.txt
+          ./filectl delete /tmp/test-a.txt
+          ./filectl delete /tmp/test-b.txt
+          ./filectl delete /tmp/test-combined.txt
+          echo "Integration tests passed!"
+
+  build:
+    needs: [lint, test, integration-test]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            suffix: ''
+          - goos: linux
+            goarch: arm64
+            suffix: ''
+          - goos: darwin
+            goarch: amd64
+            suffix: ''
+          - goos: darwin
+            goarch: arm64
+            suffix: ''
+          - goos: windows
+            goarch: amd64
+            suffix: '.exe'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          COMMIT=$(git rev-parse --short HEAD)
+          DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          go build -ldflags "-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=${DATE}" \
+            -o filectl-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }} .
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: filectl-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: filectl-*
+
+  release:
+    needs: [build]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Prepare release assets
+        run: |
+          mkdir -p release
+          cd artifacts
+          for dir in filectl-*; do
+            cp "$dir"/filectl-* ../release/ 2>/dev/null || true
+          done
+          cd ../release
+          chmod +x filectl-linux-* filectl-darwin-* 2>/dev/null || true
+          sha256sum * > checksums.txt
+      - name: Create tarballs
+        run: |
+          cd release
+          for binary in filectl-linux-amd64 filectl-linux-arm64 filectl-darwin-amd64 filectl-darwin-arm64; do
+            if [ -f "$binary" ]; then
+              tar czf "${binary}.tar.gz" "$binary"
+            fi
+          done
+          # Windows zip
+          if [ -f "filectl-windows-amd64.exe" ]; then
+            zip filectl-windows-amd64.zip filectl-windows-amd64.exe
+          fi
+      - name: Create Debian package
+        run: |
+          mkdir -p pkg/DEBIAN pkg/usr/local/bin
+          cp release/filectl-linux-amd64 pkg/usr/local/bin/filectl
+          chmod 755 pkg/usr/local/bin/filectl
+          cat > pkg/DEBIAN/control << EOF
+          Package: filectl
+          Version: ${GITHUB_REF#refs/tags/v}
+          Section: utils
+          Priority: optional
+          Architecture: amd64
+          Maintainer: Rashid BP G <rashidbpg@users.noreply.github.com>
+          Description: A file manipulation CLI tool
+           filectl provides commands for creating, copying,
+           combining, and deleting files.
+          EOF
+          dpkg-deb --build pkg filectl-${GITHUB_REF#refs/tags/v}-amd64.deb
+      - name: Create release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            release/filectl-linux-amd64.tar.gz
+            release/filectl-linux-arm64.tar.gz
+            release/filectl-darwin-amd64.tar.gz
+            release/filectl-darwin-arm64.tar.gz
+            release/filectl-windows-amd64.zip
+            release/checksums.txt
+            filectl-*.deb
+          generate_release_notes: true
