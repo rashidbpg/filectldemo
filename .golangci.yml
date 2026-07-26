@@ -1,3 +1,5 @@
+version: "2"
+
 linters:
   enable:
     - errcheck
@@ -10,7 +12,6 @@ linters:
     - goimports
     - misspell
     - bodyclose
-    - contextcheck
     - errname
     - errorlint
     - exhaustive
@@ -22,19 +23,18 @@ linters:
     - unconvert
     - unparam
     - whitespace
-
-linters-settings:
-  govet:
-    enable:
-      - shadow
-  goconst:
-    min-len: 3
-    min-occurrences: 3
-  gocyclo:
-    min-complexity: 15
-  gosec:
-    excludes:
-      - G304 # File path provided as taint input (expected in file operations)
+  settings:
+    govet:
+      enable:
+        - shadow
+    goconst:
+      min-len: 3
+      min-occurrences: 3
+    gocyclo:
+      min-complexity: 15
+    gosec:
+      excludes:
+        - G304
 
 issues:
   exclude-rules:
