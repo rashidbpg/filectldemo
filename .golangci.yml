@@ -25,7 +25,8 @@ linters:
 
 linters-settings:
   govet:
-    check-shadowing: true
+    enable:
+      - shadow
   goconst:
     min-len: 3
     min-occurrences: 3
