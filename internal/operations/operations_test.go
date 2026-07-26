@@ -9,6 +9,8 @@ import (
 	fileerrors "github.com/rashidbpg/filectldemo/pkg/errors"
 )
 
+const testFileName = "test.txt"
+
 func TestCreateFile(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -19,19 +21,19 @@ func TestCreateFile(t *testing.T) {
 	}{
 		{
 			name:    "empty file",
-			path:    "test.txt",
+			path:    testFileName,
 			content: "",
 			wantErr: false,
 		},
 		{
 			name:    "file with content",
-			path:    "test.txt",
+			path:    testFileName,
 			content: "hello world",
 			wantErr: false,
 		},
 		{
 			name:    "file with multiline content",
-			path:    "test.txt",
+			path:    testFileName,
 			content: "line 1\nline 2\nline 3",
 			wantErr: false,
 		},
@@ -61,7 +63,7 @@ func TestCreateFile(t *testing.T) {
 
 func TestCreateFileAlreadyExists(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "test.txt")
+	path := filepath.Join(dir, testFileName)
 
 	if err := CreateFile(path, ""); err != nil {
 		t.Fatalf("CreateFile() error = %v", err)
@@ -80,9 +82,9 @@ func TestCreateFileAlreadyExists(t *testing.T) {
 
 func TestCopyFile(t *testing.T) {
 	tests := []struct {
-		name     string
-		content  string
-		wantErr  bool
+		name    string
+		content string
+		wantErr bool
 	}{
 		{
 			name:    "simple copy",
@@ -225,11 +227,11 @@ func TestCopyFileNotFound(t *testing.T) {
 
 func TestCombineFiles(t *testing.T) {
 	tests := []struct {
-		name    string
+		name     string
 		content1 string
 		content2 string
-		want    string
-		wantErr bool
+		want     string
+		wantErr  bool
 	}{
 		{
 			name:     "simple combine",
@@ -396,7 +398,7 @@ func TestCreateFilePermissionError(t *testing.T) {
 		t.Fatalf("Chmod() error = %v", err)
 	}
 
-	path := filepath.Join(subdir, "test.txt")
+	path := filepath.Join(subdir, testFileName)
 	err := CreateFile(path, "content")
 
 	_ = os.Chmod(subdir, 0755)
@@ -413,7 +415,7 @@ func TestCreateFilePermissionError(t *testing.T) {
 
 func TestCreateFileGenericError(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "nonexistent", "test.txt")
+	path := filepath.Join(dir, "nonexistent", testFileName)
 
 	err := CreateFile(path, "content")
 	if err == nil {
@@ -505,7 +507,7 @@ func TestCombineFilesPermissionError(t *testing.T) {
 	dst := filepath.Join(dstDir, "combined.txt")
 	err := CombineFiles(src1, src2, dst)
 
-	os.Chmod(dstDir, 0755)
+	_ = os.Chmod(dstDir, 0755)
 
 	if err == nil {
 		t.Fatal("expected permission error")
@@ -568,7 +570,7 @@ func TestCombineFilesGenericSrcError(t *testing.T) {
 
 	err := CombineFiles(src1, src2Blocked, dst)
 
-	os.Chmod(src2Dir, 0755)
+	_ = os.Chmod(src2Dir, 0755)
 
 	if err == nil {
 		t.Fatal("expected error for unreadable source")
@@ -600,7 +602,7 @@ func TestDeleteFilePermissionError(t *testing.T) {
 
 	err := DeleteFile(path)
 
-	os.Chmod(subdir, 0755)
+	_ = os.Chmod(subdir, 0755)
 
 	if err == nil {
 		t.Fatal("expected permission error")

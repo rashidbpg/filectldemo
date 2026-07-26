@@ -19,7 +19,7 @@ func CreateFile(path string, content string) error {
 		data = []byte(content)
 	}
 
-	if err := os.WriteFile(path, data, 0644); err != nil {
+	if err := os.WriteFile(path, data, 0644); err != nil { //nolint:gosec // 0644 is intentional for user-created files
 		if errors.Is(err, os.ErrPermission) {
 			return &fileerrors.PermissionError{Path: path, Err: err}
 		}

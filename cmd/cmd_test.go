@@ -201,7 +201,7 @@ func TestSetVersionInfo(t *testing.T) {
 
 func TestExecuteHappyPath(t *testing.T) {
 	buf := new(bytes.Buffer)
-	rootCmd.SetOutput(buf)
+	rootCmd.SetOut(buf)
 	rootCmd.SetArgs([]string{})
 	Execute()
 }

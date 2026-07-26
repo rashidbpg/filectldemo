@@ -5,9 +5,11 @@ import (
 	"testing"
 )
 
+const testOp = "create"
+
 func TestFileErrorWithPath(t *testing.T) {
 	inner := errors.New("inner error")
-	fe := &FileError{Op: "create", Path: "/tmp/test.txt", Err: inner}
+	fe := &FileError{Op: testOp, Path: "/tmp/test.txt", Err: inner}
 	expected := "create /tmp/test.txt: inner error"
 	if got := fe.Error(); got != expected {
 		t.Errorf("Error() = %q, want %q", got, expected)
@@ -16,7 +18,7 @@ func TestFileErrorWithPath(t *testing.T) {
 
 func TestFileErrorWithoutPath(t *testing.T) {
 	inner := errors.New("inner error")
-	fe := &FileError{Op: "create", Err: inner}
+	fe := &FileError{Op: testOp, Err: inner}
 	expected := "create: inner error"
 	if got := fe.Error(); got != expected {
 		t.Errorf("Error() = %q, want %q", got, expected)
@@ -25,7 +27,7 @@ func TestFileErrorWithoutPath(t *testing.T) {
 
 func TestFileErrorUnwrap(t *testing.T) {
 	inner := errors.New("inner error")
-	fe := &FileError{Op: "create", Path: "/tmp/test.txt", Err: inner}
+	fe := &FileError{Op: testOp, Path: "/tmp/test.txt", Err: inner}
 	if !errors.Is(fe, inner) {
 		t.Error("expected Unwrap to return inner error")
 	}
