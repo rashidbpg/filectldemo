@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -220,8 +221,8 @@ func TestExecuteErrorPath(t *testing.T) {
 		t.Fatal("expected error from Execute()")
 	}
 
-	exitErr, ok := err.(*exec.ExitError)
-	if !ok {
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) {
 		t.Fatalf("expected ExitError, got %T: %v", err, err)
 	}
 	if exitErr.ExitCode() != 1 {

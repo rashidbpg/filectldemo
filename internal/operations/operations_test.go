@@ -175,7 +175,7 @@ func TestCopyFileOpenGenericError(t *testing.T) {
 	dst := filepath.Join(dir, "dst.txt")
 	err := CopyFile(src, dst)
 
-	os.Chmod(subdir, 0755)
+	_ = os.Chmod(subdir, 0755)
 
 	if err == nil {
 		t.Fatal("expected error for unreadable source")
@@ -399,7 +399,7 @@ func TestCreateFilePermissionError(t *testing.T) {
 	path := filepath.Join(subdir, "test.txt")
 	err := CreateFile(path, "content")
 
-	os.Chmod(subdir, 0755)
+	_ = os.Chmod(subdir, 0755)
 
 	if err == nil {
 		t.Fatal("expected permission error")
@@ -448,7 +448,7 @@ func TestCopyFilePermissionError(t *testing.T) {
 	dst := filepath.Join(dstDir, "dst.txt")
 	err := CopyFile(src, dst)
 
-	os.Chmod(dstDir, 0755)
+	_ = os.Chmod(dstDir, 0755)
 
 	if err == nil {
 		t.Fatal("expected permission error")
