@@ -16,7 +16,8 @@ filectl/
 ├── internal/version/       # Version information
 ├── pkg/errors/             # Custom error types
 ├── .github/workflows/      # CI/CD pipeline
-└── testdata/               # Test fixtures
+├── testdata/               # Test fixtures
+└── CHANGELOG.md            # Version history
 ```
 
 ## Key Commands
@@ -62,7 +63,8 @@ if errors.As(err, &notFoundErr) {
 - All file operations check for existence before proceeding
 - File permissions default to 0644
 - Commands follow Cobra patterns (Args validation, RunE handlers)
-- Version info injected via ldflags at build time
+- Commands include a `Long` description and an `Example` section in help text
+- Version info injected via ldflags at build time and surfaced via `--version` (set in `cmd.SetVersionInfo`)
 
 ## Build Commands
 ```bash
@@ -81,8 +83,9 @@ make help               # Show all available targets
 - No other external runtime dependencies
 
 ## Adding New Commands
-1. Create `cmd/newcmd.go` with cobra.Command
+1. Create `cmd/newcmd.go` with cobra.Command (include `Long` description and `Example` usage)
 2. Create `internal/operations/newop.go` with business logic
 3. Add unit tests in `internal/operations/operations_test.go`
 4. Add CLI tests in `cmd/cmd_test.go`
-5. Register command in `cmd/root.go` via `init()`
+5. Register command in `cmd/newcmd.go` via `init()` and `rootCmd.AddCommand`
+6. Update `README.md`, `AGENTS.md`, and `CHANGELOG.md`

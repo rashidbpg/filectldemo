@@ -43,20 +43,19 @@ sudo chmod +x /usr/local/bin/filectl
 #### macOS
 
 ```bash
-# Using Homebrew (coming soon)
-# brew install rashidbpg/tap/filectldemo
-
-# Or download manually
+# Download and extract
 curl -L https://github.com/rashidbpg/filectldemo/releases/latest/download/filectl-darwin-arm64.tar.gz | tar xz
 sudo mv filectl-darwin-arm64 /usr/local/bin/filectl
 ```
+
+> Homebrew tap is planned but not yet available.
 
 ### From Source
 
 ```bash
 # Clone the repository
 git clone https://github.com/rashidbpg/filectldemo.git
-cd filectl
+cd filectldemo
 
 # Build and install
 make build
@@ -68,6 +67,9 @@ sudo make install
 ```bash
 # Show help
 filectl --help
+
+# Show version
+filectl --version
 
 # Create an empty file
 filectl create myfile.txt
@@ -205,6 +207,7 @@ filectl/
 ├── go.mod                      # Go module definition
 ├── main.go                     # Entry point
 ├── README.md                   # This file
+├── CHANGELOG.md                # Version history
 └── AGENTS.md                   # AI context
 ```
 

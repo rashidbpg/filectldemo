@@ -18,6 +18,7 @@ func SetVersionInfo(v, c, d string) {
 	version = v
 	commit = c
 	date = d
+	rootCmd.Version = version
 }
 
 var rootCmd = &cobra.Command{
@@ -25,12 +26,14 @@ var rootCmd = &cobra.Command{
 	Short: "A file manipulation CLI tool",
 	Long: `filectl provides commands for creating, copying, combining, and deleting files.
 
-It is designed as a single portable binary with no runtime dependencies.`,
+It is designed as a single portable binary with no runtime dependencies.
+
+Use "filectl <command> --help" for more information about a command.`,
 	SilenceUsage: true,
 }
 
 func init() {
-	rootCmd.Version = version
+	rootCmd.SetVersionTemplate("filectl version {{.Version}}\n")
 }
 
 // Execute runs the root command.
